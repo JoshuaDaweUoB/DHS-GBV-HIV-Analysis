@@ -64,8 +64,63 @@ level_labels <- data.frame(
   level_description = c("No", "Yes", "Don't know", "Missing")
 )
 
-# results tables
-final_results <- bind_rows(violence_results, .id = "violence_variable") %>%
+# descriptive statistics
+descriptive_stats <- map_dfr(violence_vars, function(var) {
+  if(var %in% names(analysis_data)) {
+    if(str_detect(var, "^d\\d{3}$")) {
+      analysis_data %>%
+        mutate(var_level = ifelse(!!sym(var) == TRUE, "1", "0")) %>%
+        group_by(var_level) %>%
+        summarise(
+          n_level = n(),
+          n_hiv_tested = sum(v781_binary == 1, na.rm = TRUE),
+          prop_hiv_tested = mean(v781_binary == 1, na.rm = TRUE),
+          .groups = 'drop'
+        ) %>%
+        mutate(
+          violence_variable = var,
+          level = var_level,
+          percent_hiv_tested = round(prop_hiv_tested * 100, 1)
+        ) %>%
+        select(violence_variable, level, n_level, n_hiv_tested, percent_hiv_tested)
+    } else {
+      analysis_data %>%
+        group_by(!!sym(var)) %>%
+        summarise(
+          n_level = n(),
+          n_hiv_tested = sum(v781_binary == 1, na.rm = TRUE),
+          prop_hiv_tested = mean(v781_binary == 1, na.rm = TRUE),
+          .groups = 'drop'
+        ) %>%
+        mutate(
+          violence_variable = var,
+          level = as.character(!!sym(var)),
+          percent_hiv_tested = round(prop_hiv_tested * 100, 1)
+        ) %>%
+        select(violence_variable, level, n_level, n_hiv_tested, percent_hiv_tested)
+    }
+  }
+})
+
+# reference categories
+reference_rows <- descriptive_stats %>%
+  filter(level == "0") %>%
+  mutate(
+    term = "Reference",
+    level = "0",
+    odds_ratio = NA,
+    OR_lower_CI = NA,
+    OR_upper_CI = NA,
+    p.value = NA
+  ) %>%
+  left_join(variable_labels, by = "violence_variable") %>%
+  left_join(level_labels, by = "level") %>%
+  select(violence_variable, variable_label, term, level, level_description,
+         n_level, n_hiv_tested, percent_hiv_tested,
+         odds_ratio, OR_lower_CI, OR_upper_CI, p.value)
+
+# exposed categories
+odds_ratio_rows <- bind_rows(violence_results, .id = "violence_variable") %>%
   rename(
     odds_ratio = estimate,
     OR_lower_CI = conf.low,
@@ -74,17 +129,23 @@ final_results <- bind_rows(violence_results, .id = "violence_variable") %>%
   mutate(
     level = case_when(
       term == "(Intercept)" ~ "Reference",
+      str_detect(term, "TRUE$") ~ "1", 
+      str_detect(term, "FALSE$") ~ "0",
       str_detect(term, "^d\\d{4}$") ~ str_extract(term, "\\d$"),  
       TRUE ~ str_extract(term, "\\d+$")
     )
   ) %>%
+  filter(!str_detect(term, "country")) %>% 
+  filter(term != "(Intercept)") %>% 
   left_join(variable_labels, by = "violence_variable") %>%
   left_join(level_labels, by = "level") %>%
-  mutate(
-    level_description = ifelse(level == "Reference", "Reference (No)", level_description)
-  ) %>%
-  select(violence_variable, variable_label, term, level, level_description, 
-         odds_ratio, OR_lower_CI, OR_upper_CI, p.value) %>%
+  left_join(descriptive_stats, by = c("violence_variable", "level")) %>%
+  select(violence_variable, variable_label, term, level, level_description,
+         n_level, n_hiv_tested, percent_hiv_tested,
+         odds_ratio, OR_lower_CI, OR_upper_CI, p.value)
+
+# combine reference and exposed
+final_results <- bind_rows(reference_rows, odds_ratio_rows) %>%
   arrange(violence_variable, term)
 
 # save results
@@ -103,6 +164,61 @@ stratified_results <- list()
 for(level in v502_levels) {
   level_data <- analysis_data %>% filter(v502 == level)
   
+  # descriptive statistics
+  level_descriptive_stats <- map_dfr(violence_vars, function(var) {
+    if(var %in% names(level_data)) {
+      if(str_detect(var, "^d\\d{3}$")) {
+        level_data %>%
+          mutate(var_level = ifelse(!!sym(var) == TRUE, "1", "0")) %>%
+          group_by(var_level) %>%
+          summarise(
+            n_level = n(),
+            n_hiv_tested = sum(v781_binary == 1, na.rm = TRUE),
+            prop_hiv_tested = mean(v781_binary == 1, na.rm = TRUE),
+            .groups = 'drop'
+          ) %>%
+          mutate(
+            violence_variable = var,
+            level = var_level,
+            percent_hiv_tested = round(prop_hiv_tested * 100, 1)
+          ) %>%
+          select(violence_variable, level, n_level, n_hiv_tested, percent_hiv_tested)
+      } else {
+        level_data %>%
+          group_by(!!sym(var)) %>%
+          summarise(
+            n_level = n(),
+            n_hiv_tested = sum(v781_binary == 1, na.rm = TRUE),
+            prop_hiv_tested = mean(v781_binary == 1, na.rm = TRUE),
+            .groups = 'drop'
+          ) %>%
+          mutate(
+            violence_variable = var,
+            level = as.character(!!sym(var)),
+            percent_hiv_tested = round(prop_hiv_tested * 100, 1)
+          ) %>%
+          select(violence_variable, level, n_level, n_hiv_tested, percent_hiv_tested)
+      }
+    }
+  })
+  
+  # reference categories
+  level_reference_rows <- level_descriptive_stats %>%
+    filter(level == "0") %>%
+    mutate(
+      term = "Reference",
+      level = "0",
+      odds_ratio = NA,
+      OR_lower_CI = NA,
+      OR_upper_CI = NA,
+      p.value = NA
+    ) %>%
+    left_join(variable_labels, by = "violence_variable") %>%
+    left_join(level_labels, by = "level") %>%
+    select(violence_variable, variable_label, term, level, level_description,
+           n_level, n_hiv_tested, percent_hiv_tested,
+           odds_ratio, OR_lower_CI, OR_upper_CI, p.value)
+  
   level_models <- lapply(violence_vars, function(var) {
     if(var %in% names(level_data) && sum(!is.na(level_data[[var]])) > 0) {
       formula_str <- paste("v781_binary ~", var, "+ country")
@@ -117,7 +233,8 @@ for(level in v502_levels) {
     }
   })
   
-  level_final <- bind_rows(level_results, .id = "violence_variable") %>%
+  # exposed categories
+  level_odds_ratio_rows <- bind_rows(level_results, .id = "violence_variable") %>%
     rename(
       odds_ratio = estimate,
       OR_lower_CI = conf.low,
@@ -126,18 +243,23 @@ for(level in v502_levels) {
     mutate(
       level = case_when(
         term == "(Intercept)" ~ "Reference",
+        str_detect(term, "TRUE$") ~ "1", 
+        str_detect(term, "FALSE$") ~ "0",
         str_detect(term, "^d\\d{4}$") ~ str_extract(term, "\\d$"),
         TRUE ~ str_extract(term, "\\d+$") 
       )
     ) %>%
+    filter(!str_detect(term, "country")) %>% 
+    filter(term != "(Intercept)") %>% 
     left_join(variable_labels, by = "violence_variable") %>%
     left_join(level_labels, by = "level") %>%
-    mutate(
-      level_description = ifelse(level == "Reference", "Reference (No)", level_description)
-    ) %>%
-    filter(!str_detect(term, "country")) %>%
-    select(violence_variable, variable_label, term, level, level_description, 
-           odds_ratio, OR_lower_CI, OR_upper_CI, p.value) %>%
+    left_join(level_descriptive_stats, by = c("violence_variable", "level")) %>%
+    select(violence_variable, variable_label, term, level, level_description,
+           n_level, n_hiv_tested, percent_hiv_tested,
+           odds_ratio, OR_lower_CI, OR_upper_CI, p.value)
+  
+  # combine exposed and reference categories
+  level_final <- bind_rows(level_reference_rows, level_odds_ratio_rows) %>%
     arrange(violence_variable, term)
   
   sheet_name <- case_when(
