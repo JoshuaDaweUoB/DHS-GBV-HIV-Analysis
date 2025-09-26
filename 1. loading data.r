@@ -115,10 +115,10 @@ southeast_asia_combined <- bind_rows(
   timorleste_2016_individual_clean
 )
 
-# First, create the analysis data and run regressions
+# violence variables
 violence_vars <- c("s826f", "v744a", "v744b", "v744c", "v744d", "v744e", "v850a", "d104", "d106", "d107", "d108", "d128")
 
-# Remove missing values for the outcome and create binary outcome
+# binary hiv testing outcome
 analysis_data <- southeast_asia_combined %>%
   filter(!is.na(v781)) %>%
   mutate(v781_binary = case_when(
@@ -128,11 +128,11 @@ analysis_data <- southeast_asia_combined %>%
   )) %>%
   filter(!is.na(v781_binary))
 
-# Convert violence variables to factors for categorical analysis
+# convert vars from numeric to factors
 analysis_data <- analysis_data %>%
   mutate(across(any_of(violence_vars), ~ as.factor(.x)))
 
-# Run logistic regression with country adjustment
+# logistic regressions adjusting for country
 violence_models <- lapply(violence_vars, function(var) {
   if(var %in% names(analysis_data) && sum(!is.na(analysis_data[[var]])) > 0) {
     formula_str <- paste("v781_binary ~", var, "+ country")
@@ -140,7 +140,7 @@ violence_models <- lapply(violence_vars, function(var) {
   }
 })
 
-# Get results
+# store results
 names(violence_models) <- violence_vars
 violence_results <- lapply(violence_models, function(model) {
   if(!is.null(model)) {
@@ -148,7 +148,7 @@ violence_results <- lapply(violence_models, function(model) {
   }
 })
 
-# Create variable and level labels
+# variable and level labels
 variable_labels <- data.frame(
   violence_variable = c("s826f", "v744a", "v744b", "v744c", "v744d", "v744e", "v850a", "d104", "d106", "d107", "d108", "d128"),
   variable_label = c(
@@ -172,7 +172,7 @@ level_labels <- data.frame(
   level_description = c("No", "Yes", "Don't know", "Missing")
 )
 
-# Create final labeled results table with proper level extraction
+# results tables
 final_results <- bind_rows(violence_results, .id = "violence_variable") %>%
   rename(
     odds_ratio = estimate,
@@ -180,11 +180,10 @@ final_results <- bind_rows(violence_results, .id = "violence_variable") %>%
     OR_upper_CI = conf.high
   ) %>%
   mutate(
-    # Extract the numeric level from the term (e.g., "s826f1" -> "1", "d1041" -> "1") 
     level = case_when(
       term == "(Intercept)" ~ "Reference",
-      str_detect(term, "^d\\d{4}$") ~ str_extract(term, "\\d$"),  # For d-variables, extract last digit only
-      TRUE ~ str_extract(term, "\\d+$")  # Extract digits at the end for other variables
+      str_detect(term, "^d\\d{4}$") ~ str_extract(term, "\\d$"),  
+      TRUE ~ str_extract(term, "\\d+$")
     )
   ) %>%
   left_join(variable_labels, by = "violence_variable") %>%
@@ -196,24 +195,22 @@ final_results <- bind_rows(violence_results, .id = "violence_variable") %>%
          odds_ratio, OR_lower_CI, OR_upper_CI, p.value) %>%
   arrange(violence_variable, term)
 
-# Save final results to Excel
+# save results
 write_xlsx(final_results, "violence_hiv_testing_odds_ratios.xlsx")
 
-# Check the levels of v502 first
+# check the marriage variable
 table(analysis_data$v502, useNA = "ifany")
 
-# Get unique levels of v502 for stratification
+# store levels of marriage variable
 v502_levels <- unique(analysis_data$v502[!is.na(analysis_data$v502)])
 
-# Create a list to store results for each v502 level
+# list for results
 stratified_results <- list()
 
-# Run regressions for each level of v502
+# regression for levels of marriage variable
 for(level in v502_levels) {
-  # Filter data for this v502 level
   level_data <- analysis_data %>% filter(v502 == level)
   
-  # Run regressions for this level
   level_models <- lapply(violence_vars, function(var) {
     if(var %in% names(level_data) && sum(!is.na(level_data[[var]])) > 0) {
       formula_str <- paste("v781_binary ~", var, "+ country")
@@ -221,7 +218,6 @@ for(level in v502_levels) {
     }
   })
   
-  # Get results for this level
   names(level_models) <- violence_vars
   level_results <- lapply(level_models, function(model) {
     if(!is.null(model)) {
@@ -229,7 +225,6 @@ for(level in v502_levels) {
     }
   })
   
-  # Create labeled results for this level
   level_final <- bind_rows(level_results, .id = "violence_variable") %>%
     rename(
       odds_ratio = estimate,
@@ -239,8 +234,8 @@ for(level in v502_levels) {
     mutate(
       level = case_when(
         term == "(Intercept)" ~ "Reference",
-        str_detect(term, "^d\\d{4}$") ~ str_extract(term, "\\d$"),  # For d-variables, extract last digit only
-        TRUE ~ str_extract(term, "\\d+$")  # Extract digits at the end for other variables
+        str_detect(term, "^d\\d{4}$") ~ str_extract(term, "\\d$"),
+        TRUE ~ str_extract(term, "\\d+$") 
       )
     ) %>%
     left_join(variable_labels, by = "violence_variable") %>%
@@ -248,12 +243,11 @@ for(level in v502_levels) {
     mutate(
       level_description = ifelse(level == "Reference", "Reference (No)", level_description)
     ) %>%
-    filter(!str_detect(term, "country")) %>%  # Remove country terms
+    filter(!str_detect(term, "country")) %>%
     select(violence_variable, variable_label, term, level, level_description, 
            odds_ratio, OR_lower_CI, OR_upper_CI, p.value) %>%
     arrange(violence_variable, term)
   
-  # Store with descriptive name
   sheet_name <- case_when(
     level == 0 ~ "Never_married",
     level == 1 ~ "Currently_married", 
@@ -264,5 +258,7 @@ for(level in v502_levels) {
   stratified_results[[sheet_name]] <- level_final
 }
 
-# Save all sheets to one Excel file
+# save to excel
 write_xlsx(stratified_results, "violence_hiv_by_marital_status.xlsx")
+
+test test 
