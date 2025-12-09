@@ -105,14 +105,12 @@ southeast_asia_combined <- bind_rows(
   cambodia_2010_individual_clean,
   cambodia_2014_individual_clean,
   cambodia_2021_individual_clean,
-  indonesia_2012_individual_clean,
-  indonesia_2017_individual_clean,
-  myanmar_2015_individual_clean,
   philippines_2013_individual_clean,
   philippines_2017_individual_clean,
-  philippines_2022_individual_clean,
-  timorleste_2016_individual_clean
+  philippines_2022_individual_clean
 )
 
+
+
 # save data
-write_xlsx(southeast_asia_combined, "../code/southeast_asia_combined_dataset.xlsx")
+write_xlsx(southeast_asia_combined, "../data/southeast_asia_combined_dataset.xlsx")
