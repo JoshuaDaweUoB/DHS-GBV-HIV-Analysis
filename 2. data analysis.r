@@ -10,6 +10,9 @@ southeast_asia_combined <- read_xlsx("../data/southeast_asia_combined_dataset.xl
 # violence variables
 violence_vars <- c("s826f", "v744a", "v744b", "v744c", "v744d", "v744e", "v850a", "d104", "d106", "d107", "d108", "d128")
 
+# confounders
+confounder_vars <- c("v130_standard", "v013", "v140", "v150_standard", "v213", "v717_standard", "v106")
+
 # binary hiv testing outcome
 analysis_data <- southeast_asia_combined %>%
   filter(!is.na(v781)) %>%
@@ -78,6 +81,23 @@ freq_01 <- function(df, var) {
   )
 }
 
+variable_labels <- tibble::tribble(
+  ~violence_variable, ~variable_label,
+  "s826f", "Justifies DV: wife ask use condom",
+  "v744a", "Wife beating justified: goes out without telling husband",
+  "v744b", "Wife beating justified: neglects children",
+  "v744c", "Wife beating justified: argues with husband",
+  "v744d", "Wife beating justified: refuses sex with husband",
+  "v744e", "Wife beating justified: burns the food",
+  "v850a", "Can respondent refuse sex",
+  "d104",  "Experienced any emotional violence",
+  "d106",  "Experienced any less severe violence",
+  "d107",  "Experienced any severe violence",
+  "d108",  "Experienced any sexual violence",
+  "d128",  "Ever told anyone else about violence",
+  "beating_justified_bin", "Wife beating justified (any reason)"
+)
+
 # Build the table
 violence_freq_rows <- purrr::map_dfr(violence_vars, function(var) {
   # Label for the violence variable
@@ -131,6 +151,40 @@ exposure_labels <- c(
 )
 
 justified_vars <- c("beating_justified_bin", "v744a","v744b","v744c","v744d","v744e")
+
+# define violence variable
+violence_vars <- c(
+  "s826f",                     # Justifies DV: wife ask use condom (0/1/8/9)
+  "v744a","v744b","v744c","v744d","v744e",  # Wife beating justified items (0/1/8/9)
+  "v850a",                     # Can respondent refuse sex (0/1/8/9 or 0/1)
+  "d104","d106","d107","d108","d128",        # Logical TRUE/FALSE
+  "beating_justified_bin"
+)
+
+variable_labels <- tibble::tribble(
+  ~violence_variable, ~variable_label,
+  "d104",  "Experienced any emotional violence",
+  "d106",  "Experienced any less severe violence",
+  "d107",  "Experienced any severe violence",
+  "d108",  "Experienced any sexual violence",
+  "d128",  "Ever told anyone else about violence",
+  "s826f", "Justifies DV: wife ask use condom",
+  "v744a", "Wife beating justified: goes out without telling husband",
+  "v744b", "Wife beating justified: neglects children",
+  "v744c", "Wife beating justified: argues with husband",
+  "v744d", "Wife beating justified: refuses sex with husband",
+  "v744e", "Wife beating justified: burns the food",
+  "v850a", "Can respondent refuse sex",
+  "beating_justified_bin", "Wife beating justified (any reason)"
+)
+
+level_labels <- tibble::tribble(
+  ~level, ~level_description,
+  "0", "No",
+  "1", "Yes",
+  "8", "Don't know",
+  "9", "Missing"
+)
 
 # frequency table
 setNames(lapply(exposures, \(v) table(analysis_data[[v]], useNA = "ifany")), exposures)
@@ -189,9 +243,11 @@ build_outcome_table <- function(country_filter = NULL, label = "Overall") {
     level_data <- df %>%
       transmute(
         exposure = !!sym(var),
-        outcome  = beating_justified_bin
+        outcome  = beating_justified_bin,
+        across(all_of(confounder_vars), ~ .x)
       ) %>%
-      filter(!is.na(exposure) & !is.na(outcome))
+      filter(!is.na(exposure) & !is.na(outcome)) %>%
+      drop_na(all_of(confounder_vars))  # complete case analysis
     
     # simple counts
     ds <- level_data %>%
@@ -203,12 +259,13 @@ build_outcome_table <- function(country_filter = NULL, label = "Overall") {
         .groups = "drop"
       )
     
-    # logistic regression (unadjusted)
+    # logistic regression (adjusted for confounders)
     model <- tryCatch(
-      if (n_distinct(level_data$exposure) > 1)
-        glm(I(outcome == "Yes") ~ exposure, 
-            data = level_data, family = binomial())
-      else NULL,
+      if (n_distinct(level_data$exposure) > 1) {
+        fml <- as.formula(paste("I(outcome == 'Yes') ~ exposure +", 
+                                paste(confounder_vars, collapse = " + ")))
+        glm(fml, data = level_data, family = binomial())
+      } else NULL,
       error = function(e) NULL
     )
     
@@ -257,92 +314,121 @@ final_table <- table_ph %>%
 # ---------------------
 write_xlsx(final_table, "beating_justified_by_exposure.xlsx")
 
-## association between violence and hiv testing ##
 
-# ----------------------------
-# Load data
-# ----------------------------
-southeast_asia_combined <- read_xlsx("../data/southeast_asia_combined_dataset.xlsx")
 
-# ----------------------------
-# Config: variables and labels
-# ----------------------------
 
-analysis_data <- southeast_asia_combined %>%
-  mutate(country = tolower(as.character(country))) %>%
-  filter(!is.na(v781)) %>%
-  mutate(
-    v781_binary = dplyr::case_when(
-      v781 == 1 ~ 1,
-      v781 == 0 ~ 0,
-      TRUE ~ NA_real_
-    )
-  ) %>%
-  filter(!is.na(v781_binary))
 
-# binary hiv testing outcome
-analysis_data <- southeast_asia_combined %>%
-  filter(!is.na(v781)) %>%
-  mutate(v781_binary = case_when(
-    v781 == 1 ~ 1,  
-    v781 == 0 ~ 0,  
-    TRUE ~ NA_real_ 
-  )) %>%
-  filter(!is.na(v781_binary))
 
-# any wife-beating justified (v744a–v744e) → derive as "0"/"1"
-just_vars <- c("v744a","v744b","v744c","v744d","v744e")
 
-analysis_data <- analysis_data %>%
-  mutate(across(all_of(just_vars), ~ as.numeric(as.character(.x)))) %>%   # ensure numeric
-  mutate(
-    beating_justified_bin =
-      case_when(
-        rowSums(across(all_of(just_vars), ~ .x == 1), na.rm = TRUE) > 0 ~ 1,  # any Yes
-        rowSums(across(all_of(just_vars), ~ .x %in% c(0,1)), na.rm = TRUE) > 0 ~ 0,  # at least observed 0/1
-        TRUE ~ NA_real_                                                    # all missing/don't know
-      ),
-    beating_justified_bin = factor(beating_justified_bin, levels = c(0,1),
-                                   labels = c("No","Yes"))
+
+
+
+
+
+
+
+# Loop over all violence variables and run models overall and by country
+violence_results <- purrr::map_dfr(violence_vars, function(vv) {
+  # Build formula
+  confounder_str <- paste(confounder_vars, collapse = " + ")
+  fml <- as.formula(paste("v781_binary ~", vv, "+", confounder_str))
+  
+  # Overall
+  model_all <- tryCatch(glm(fml, data = married_data, family = binomial()), error = function(e) NULL)
+  res_all <- if (!is.null(model_all)) {
+    broom::tidy(model_all, exponentiate = TRUE, conf.int = TRUE) %>%
+      filter(term == vv) %>%
+      mutate(violence_variable = vv, country = "all")
+  } else NULL
+  
+  # Philippines
+  model_ph <- tryCatch(glm(fml, data = married_data[married_data$country == "philippines", ], family = binomial()), error = function(e) NULL)
+  res_ph <- if (!is.null(model_ph)) {
+    broom::tidy(model_ph, exponentiate = TRUE, conf.int = TRUE) %>%
+      filter(term == vv) %>%
+      mutate(violence_variable = vv, country = "philippines")
+  } else NULL
+  
+  # Cambodia
+  model_kh <- tryCatch(glm(fml, data = married_data[married_data$country == "cambodia", ], family = binomial()), error = function(e) NULL)
+  res_kh <- if (!is.null(model_kh)) {
+    broom::tidy(model_kh, exponentiate = TRUE, conf.int = TRUE) %>%
+      filter(term == vv) %>%
+      mutate(violence_variable = vv, country = "cambodia")
+  } else NULL
+  
+  bind_rows(res_all, res_ph, res_kh)
+})
+
+# Add variable labels
+violence_results <- violence_results %>%
+  left_join(variable_labels, by = c("violence_variable"))
+
+# Save to Excel
+writexl::write_xlsx(violence_results, "violence_hiv_married_by_country.xlsx")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Function to fit model and tidy results
+fit_and_tidy <- function(var) {
+  fml <- as.formula(
+    paste("v781_binary ~", var, "+", paste(confounder_vars, collapse = " + "))
   )
+  model <- tryCatch(
+    glm(fml, data = married_data, family = binomial()),
+    error = function(e) NULL
+  )
+  if (is.null(model)) return(NULL)
+  broom::tidy(model, exponentiate = TRUE, conf.int = TRUE) %>%
+    mutate(violence_variable = var)
+}
 
-# define violence variable
-violence_vars <- c(
-  "s826f",                     # Justifies DV: wife ask use condom (0/1/8/9)
-  "v744a","v744b","v744c","v744d","v744e",  # Wife beating justified items (0/1/8/9)
-  "v850a",                     # Can respondent refuse sex (0/1/8/9 or 0/1)
-  "d104","d106","d107","d108","d128",        # Logical TRUE/FALSE
-  "beating_justified_bin"
-)
+# Run for all violence variables
+results <- map_dfr(violence_vars, fit_and_tidy)
 
-variable_labels <- tibble::tribble(
-  ~violence_variable, ~variable_label,
-  "d104",  "Experienced any emotional violence",
-  "d106",  "Experienced any less severe violence",
-  "d107",  "Experienced any severe violence",
-  "d108",  "Experienced any sexual violence",
-  "d128",  "Ever told anyone else about violence",
-  "s826f", "Justifies DV: wife ask use condom",
-  "v744a", "Wife beating justified: goes out without telling husband",
-  "v744b", "Wife beating justified: neglects children",
-  "v744c", "Wife beating justified: argues with husband",
-  "v744d", "Wife beating justified: refuses sex with husband",
-  "v744e", "Wife beating justified: burns the food",
-  "v850a", "Can respondent refuse sex",
-  "beating_justified_bin", "Wife beating justified (any reason)"
-)
+# Filter to the violence variable effect only (not confounders or intercept)
+results_main <- results %>%
+  filter(term == violence_variable)
 
-level_labels <- tibble::tribble(
-  ~level, ~level_description,
-  "0", "No",
-  "1", "Yes",
-  "8", "Don't know",
-  "9", "Missing"
-)
+print(results_main)
 
-# convert vars from numeric to factors
-analysis_data <- analysis_data %>%
-  mutate(across(any_of(violence_vars), ~ as.factor(.x)))
+writexl::write_xlsx(results_main, "violence_hiv_married_results.xlsx")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # ----------------------------
 # Stratified models by v502
@@ -398,26 +484,57 @@ desc_one <- function(level_data, var) {
   }
 }
 
-# Fit one model safely inside a stratum
-fit_one <- function(level_data, var) {
+# Create a global list to store skipped confounders
+skipped_confounders_log <- list()
+
+fit_one <- function(level_data, var, stratum_label = NULL) {
   if (!var %in% names(level_data)) return(NULL)
-
   model_df <- level_data %>%
-    select(v781_binary, country, !!rlang::sym(var)) %>%
-    drop_na() %>%
-    mutate(country = droplevels(as.factor(country)))
-
-  # predictor as factor
+    dplyr::select(v781_binary, country, !!rlang::sym(var), dplyr::all_of(confounder_vars)) %>%
+    tidyr::drop_na() %>%
+    dplyr::mutate(country = droplevels(as.factor(country)))
   model_df[[var]] <- droplevels(as.factor(model_df[[var]]))
-
-  # Need ≥ 2 exposure levels
   if (nrow(model_df) == 0 || dplyr::n_distinct(model_df[[var]]) < 2) return(NULL)
 
+  # Only keep confounders that are not constant, not all missing, and not perfectly collinear
+  confs <- confounder_vars[sapply(model_df[confounder_vars], function(x) {
+    vals <- x[!is.na(x)]
+    dplyr::n_distinct(vals) > 1 && !all(is.na(x))
+  })]
+  # Remove confounders that are perfectly collinear with the exposure or outcome
+  confs <- confs[!sapply(confs, function(cn) {
+    # Collinear with exposure
+    all(!is.na(model_df[[cn]])) &&
+      (dplyr::n_distinct(interaction(model_df[[cn]], model_df[[var]])) == dplyr::n_distinct(model_df[[cn]]) ||
+       dplyr::n_distinct(interaction(model_df[[cn]], model_df$v781_binary)) == dplyr::n_distinct(model_df[[cn]]))
+  })]
+  skipped <- setdiff(confounder_vars, confs)
+  if (length(skipped) > 0) {
+    key <- paste0("stratum:", stratum_label, "|var:", var)
+    skipped_confounders_log[[key]] <<- skipped
+    message("Skipped confounders for ", var, " in stratum ", stratum_label, ": ", paste(skipped, collapse = ", "))
+  }
   use_country <- dplyr::n_distinct(model_df$country) >= 2
-  fml <- as.formula(paste("v781_binary ~", var, if (use_country) "+ country" else ""))
-
-  tryCatch(glm(fml, data = model_df, family = binomial()),
-           error = function(e) NULL)
+  rhs <- c(var, if (use_country) "country" else NULL, confs)
+  fml <- as.formula(paste("v781_binary ~", paste(rhs, collapse = " + ")))
+  # Suppress warnings and catch errors
+  result <- tryCatch(
+    suppressWarnings(glm(fml, data = model_df, family = binomial())),
+    error = function(e) {
+      key <- paste0("stratum:", stratum_label, "|var:", var)
+      skipped_confounders_log[[paste0(key, "|error")]] <<- e$message
+      message("Model failed for ", var, " in stratum ", stratum_label, ": ", e$message)
+      NULL
+    }
+  )
+  # If model did not converge, return NULL
+  if (!is.null(result) && !result$converged) {
+    key <- paste0("stratum:", stratum_label, "|var:", var)
+    skipped_confounders_log[[paste0(key, "|convergence")]] <<- "Model did not converge"
+    message("Model did not converge for ", var, " in stratum ", stratum_label)
+    return(NULL)
+  }
+  result
 }
 
 # Build results per stratum (sheet)

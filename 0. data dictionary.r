@@ -23,14 +23,6 @@
 # 2 - secondary
 # 3 - higher
 
-# v130 - religion
-# 1 - buddhist
-# 2 - muslim
-# 3 - christian
-# 95 - no religion
-# 96 - other
-# 99 - missing
-
 # v130 - religion (philippines)
 # 1 - roman catholic
 # 2 - protestant
@@ -43,11 +35,11 @@
 # 97 - none
 # 99 - missing
 
-# v130 - religion (timor leste)
-# 1 - roman catholic
+# v130 - religion (cambodia)
+# 1 - buddhist
 # 2 - muslim
-# 3 - protestant
-# 4 - hindu
+# 3 - christian
+# 95 - no religion
 # 96 - other
 
 # v137 - number of children 5 and under
@@ -56,6 +48,20 @@
 # 1 - urban
 # 2 - rural 
 # 7 - not a de jure resident
+
+# v150 - household lead
+# 1 - head
+# 2 - wife or husband
+# 3 - son/daughter
+# 4 - son/daughter-in-law
+# 5 - grandchild
+# 6 - parent
+# 7 - parent-in-law
+# 8 - brother/sister
+# 10 - other relative
+# 11 - adopted/foster child
+# 12 - not related
+# 15 - kinship care
 
 # v155 - literacy
 # 0 - cannot read at all
