@@ -11,7 +11,7 @@ southeast_asia_combined <- read_xlsx("../data/southeast_asia_combined_dataset.xl
 violence_vars <- c("s826f", "v744a", "v744b", "v744c", "v744d", "v744e", "v850a", "d104", "d106", "d107", "d108", "d128")
 
 # confounders
-confounder_vars <- c("v130_standard", "v013", "v140", "v150_standard", "v213", "v717_standard", "v106")
+confounder_vars <- c("children_under5_4cat", "v013", "v140", "v150_standard", "v213", "employed_bin", "v106")
 
 # binary hiv testing outcome
 analysis_data <- southeast_asia_combined %>%

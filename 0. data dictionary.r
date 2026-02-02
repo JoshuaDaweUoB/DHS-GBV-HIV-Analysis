@@ -99,6 +99,11 @@
 # v525 - age at first intercourse/sex
 # v531 - age at first intercourse/sex (imputed)
 
+# employed_bin 
+# 0 - not employed
+# 1 - employed
+# 2 - not sure
+
 # v761 - last intercourse used condom
 # 0 - no
 # 1 - yes

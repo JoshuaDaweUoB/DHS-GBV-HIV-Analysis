@@ -61,7 +61,7 @@ southeast_asia_combined <- bind_rows(
 
 # standardise religion variable
 southeast_asia_combined <- southeast_asia_combined %>%
-  mutate(v130_standard = case_when(
+  mutate(religion = case_when(
     # Cambodia
     country == "cambodia" & v130 == 1 ~ "buddhist",
     country == "cambodia" & v130 == 2 ~ "muslim",
@@ -110,7 +110,7 @@ analysis_data <- southeast_asia_combined %>%
 
 # standardise household relationship variable
 southeast_asia_combined <- southeast_asia_combined %>%
-  mutate(v150_standard = case_when(
+  mutate(household_head = case_when(
     v150 == 1 ~ "head",
     v150 == 2 ~ "spouse",
     v150 %in% c(3, 4, 11) ~ "child",
@@ -121,11 +121,15 @@ southeast_asia_combined <- southeast_asia_combined %>%
 
 # binary occupation variable
 southeast_asia_combined <- southeast_asia_combined %>%
-  mutate(v717_standard = case_when(
-    v717 == 0 ~ "not employed",
-    v717 %in% c(1, 2, 3, 4, 7, 8, 9) ~ "employed",
-    v717 == 98 ~ "don't know",
-    TRUE ~ "missing"
+  mutate(employed_bin = factor(
+    case_when(
+      v717 == 0 ~ 0,  
+      v717 %in% c(1,2,3,4,7,8,9) ~ 1,
+      v717 == 98 ~ 2,
+      TRUE ~ NA_real_
+    ),
+    levels = c(0, 1, 2),
+    labels = c("not employed", "employed", "don't know")
   ))
 
 # create three age cat
@@ -157,14 +161,14 @@ southeast_asia_combined <- southeast_asia_combined %>%
 # create number of children cat
 southeast_asia_combined <- southeast_asia_combined %>%
   mutate(
-    v137_cat = case_when(
+    children_under5_4cat = case_when(
       v137 == 0 ~ "0",
       v137 == 1 ~ "1",
       v137 == 2 ~ "2",
       v137 >= 3 ~ "3+",
       TRUE ~ NA_character_
     ),
-    v137_cat = factor(v137_cat, levels = c("0", "1", "2", "3+"))
+    children_under5_4cat = factor(children_under5_4cat, levels = c("0", "1", "2", "3+"))
   )
 
 # create binary acceptability questions
@@ -193,16 +197,11 @@ southeast_asia_combined <- southeast_asia_combined %>%
   mutate(
     v013 = factor(v013, levels = 1:7,
                   labels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
-    v140 = factor(v140, levels = c(1, 2, 7),
-                  labels = c("urban", "rural", "not de jure resident")),
-    v213 = factor(v213, levels = c(0, 1),
-                  labels = c("no or unsure", "yes"))
+    residence_3cat = factor(v140, levels = c(1, 2, 7),
+                            labels = c("urban", "rural", "not de jure resident")),
+    pregnant_bin = factor(v213, levels = c(0, 1),
+                         labels = c("no or unsure", "yes"))
   )
-
-# tab
-table(southeast_asia_combined$v130_standard, southeast_asia_combined$country, useNA = "ifany")
-table(southeast_asia_combined$v150_standard, southeast_asia_combined$country, useNA = "ifany")
-table(southeast_asia_combined$v717_standard, southeast_asia_combined$country, useNA = "ifany")
 
 # save data
 write_xlsx(southeast_asia_combined, "../data/southeast_asia_combined_dataset.xlsx")

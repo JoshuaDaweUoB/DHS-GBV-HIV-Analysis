@@ -9,10 +9,6 @@ southeast_asia_combined <- readRDS("../data/southeast_asia_combined_dataset.rds"
 # create workbook for results
 violence_results <- loadWorkbook("violence_ORs.xlsx")
 
-# violence variables
-violence_vars <- c("d104", "d106", "d107", "d108", "d128", "any_violence")
-acceptability_vars <- c("s826f", "v744a", "v744b", "v744c", "v744d", "v744e", "v850a", "beating_justified_bin")
-
 # stratify data by marriage type
 married_data <- southeast_asia_combined %>% filter(v502 == 1)
 never_married_data <- southeast_asia_combined %>% filter(v502 == 0)
@@ -24,7 +20,7 @@ for (var in exposures) {
 }
 
 # confounders
-confounder_vars_stratified <- c("v150_standard", "v130_standard", "v717_standard", "v140", "v137_cat")  
+confounder_vars_stratified <- c("household_head", "religion", "employed_bin", "residence_3cat", "children_under5_4cat")  
 
 # Build formula using confounder_vars
 build_formula <- function(exposure, confounders) {
@@ -36,8 +32,8 @@ build_formula <- function(exposure, confounders) {
 
 # Philippines
 
-exposures <- c("emotional_violence_bin", "less_severe_violence_bin", "severe_violence_bin", "sexual_violence_bin", "any_violence")
-exposure_labels <- c("Emotional violence", "Less severe violence", "Severe violence", "Sexual violence", "Any violence")
+exposures <- c("any_violence", "emotional_violence_bin", "sexual_violence_bin", "less_severe_violence_bin", "severe_violence_bin", )
+exposure_labels <- c("Any violence", "Emotional violence", "Sexual violence", "Less severe violence", "Severe violence")
 
 results <- data.frame(
   Exposure = exposure_labels,
@@ -84,7 +80,6 @@ for (i in seq_along(exposures)) {
 }
 
 # save results
-addWorksheet(violence_results, "philippines")
 writeData(violence_results, "philippines", results)
 
 # cambodia
@@ -111,14 +106,18 @@ for (i in seq_along(exposures)) {
 
 # Never married
 for (i in seq_along(exposures)) {
-  model <- glm(build_formula(exposures[i], confounder_vars_stratified), data = never_married_data[never_married_data$country == "cambodia", ], family = binomial())
-  res <- tidy(model, exponentiate = TRUE, conf.int = TRUE)
-  term <- paste0(exposures[i], "Yes")
-  row <- res[res$term == term, ]
-  if (nrow(row) > 0) {
-    or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
-    results$NeverMarried_OR_CI[i] <- or_str
-  }
+  try({
+    model <- glm(build_formula(exposures[i], confounder_vars_stratified), 
+                 data = never_married_data[never_married_data$country == "cambodia", ], 
+                 family = binomial())
+    res <- tidy(model, exponentiate = TRUE, conf.int = TRUE)
+    term <- paste0(exposures[i], "Yes")
+    row <- res[res$term == term, ]
+    if (nrow(row) > 0) {
+      or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
+      results$NeverMarried_OR_CI[i] <- or_str
+    }
+  }, silent = TRUE)
 }
 
 # Separated
@@ -134,16 +133,92 @@ for (i in seq_along(exposures)) {
 }
 
 # save results
-addWorksheet(violence_results, "cambodia")
 writeData(violence_results, "cambodia", results)
 saveWorkbook(violence_results, "violence_ORs.xlsx", overwrite = TRUE)
 
+## acceptability of violence
 
+# Acceptability exposures and labels
+acceptability_exposures <- c(
+  "justifies_dv_condom_bin",
+  "beating_justified_out_bin",
+  "beating_justified_neglect_bin",
+  "beating_justified_argue_bin",
+  "beating_justified_refuse_sex_bin",
+  "beating_justified_burn_food_bin",
+  "can_refuse_sex_bin",
+  "beating_justified_bin"
+)
+acceptability_labels <- c(
+  "Justifies DV (condom)",
+  "Beating justified: out",
+  "Beating justified: neglect",
+  "Beating justified: argue",
+  "Beating justified: refuse sex",
+  "Beating justified: burn food",
+  "Can refuse sex",
+  "Any beating justified"
+)
 
+acceptability_results <- data.frame(
+  Exposure = acceptability_labels,
+  Married_OR_CI = NA_character_,
+  NeverMarried_OR_CI = NA_character_,
+  Separated_OR_CI = NA_character_,
+  stringsAsFactors = FALSE
+)
 
+# Married
+for (i in seq_along(acceptability_exposures)) {
+  try({
+    model <- glm(build_formula(acceptability_exposures[i], confounder_vars_stratified), 
+                 data = married_data[married_data$country == "philippines", ], 
+                 family = binomial())
+    res <- tidy(model, exponentiate = TRUE, conf.int = TRUE)
+    term <- acceptability_exposures[i]
+    row <- res[res$term == term, ]
+    if (nrow(row) > 0) {
+      or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
+      results$NeverMarried_OR_CI[i] <- or_str
+    }
+  }, silent = TRUE)
+}
 
+# Never married
+for (i in seq_along(acceptability_exposures)) {
+  try({
+    model <- glm(build_formula(acceptability_exposures[i], confounder_vars_stratified), 
+                 data = never_married_data[never_married_data$country == "philippines", ], 
+                 family = binomial())
+    res <- tidy(model, exponentiate = TRUE, conf.int = TRUE)
+    term <- acceptability_exposures[i]
+    row <- res[res$term == term, ]
+    if (nrow(row) > 0) {
+      or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
+      results$NeverMarried_OR_CI[i] <- or_str
+    }
+  }, silent = TRUE)
+}
 
+# Separated
+for (i in seq_along(acceptability_exposures)) {
+  try({
+    model <- glm(build_formula(acceptability_exposures[i], confounder_vars_stratified), 
+                 data = separated_married_data[separated_married_data$country == "philippines", ], 
+                 family = binomial())
+    res <- tidy(model, exponentiate = TRUE, conf.int = TRUE)
+    term <- acceptability_exposures[i]
+    row <- res[res$term == term, ]
+    if (nrow(row) > 0) {
+      or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
+      results$NeverMarried_OR_CI[i] <- or_str
+    }
+  }, silent = TRUE)
+}
 
+# Save results
+writeData(violence_results, "philippines_acceptability", acceptability_results)
+saveWorkbook(violence_results, "violence_ORs.xlsx", overwrite = TRUE)
 
 
 
@@ -200,6 +275,7 @@ acceptability_vars <- c("s826f", "v744a", "v744b", "v744c", "v744d", "v744e", "v
 # any beating justified
 model <- glm(build_formula("beating_justified_bin", confounder_vars_stratified), data = married_data[married_data$country == "philippines", ], family = binomial())
 summary(model)
+print(res$term)
 exp(cbind(OR = coef(model), confint(model)))
 
 # wife beating justified if she goes out without telling husband
