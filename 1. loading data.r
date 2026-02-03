@@ -158,6 +158,29 @@ southeast_asia_combined <- southeast_asia_combined %>%
     ), levels = c(0, 1), labels = c("No", "Yes"))
   )
 
+# make acceptability questions binary
+southeast_asia_combined <- southeast_asia_combined %>%
+  mutate(
+    justifies_dv_condom_bin          = factor(case_when(s826f == 1 ~ 1, s826f == 0 ~ 0, TRUE ~ NA_real_), levels = c(0, 1), labels = c("No", "Yes")),
+    beating_justified_out_bin        = factor(case_when(v744a == 1 ~ 1, v744a == 0 ~ 0, TRUE ~ NA_real_), levels = c(0, 1), labels = c("No", "Yes")),
+    beating_justified_neglect_bin    = factor(case_when(v744b == 1 ~ 1, v744b == 0 ~ 0, TRUE ~ NA_real_), levels = c(0, 1), labels = c("No", "Yes")),
+    beating_justified_argue_bin      = factor(case_when(v744c == 1 ~ 1, v744c == 0 ~ 0, TRUE ~ NA_real_), levels = c(0, 1), labels = c("No", "Yes")),
+    beating_justified_refuse_sex_bin = factor(case_when(v744d == 1 ~ 1, v744d == 0 ~ 0, TRUE ~ NA_real_), levels = c(0, 1), labels = c("No", "Yes")),
+    beating_justified_burn_food_bin  = factor(case_when(v744e == 1 ~ 1, v744e == 0 ~ 0, TRUE ~ NA_real_), levels = c(0, 1), labels = c("No", "Yes")),
+    can_refuse_sex_bin               = factor(case_when(v850a == 1 ~ 1, v850a == 0 ~ 0, TRUE ~ NA_real_), levels = c(0, 1), labels = c("No", "Yes")),
+
+    beating_justified_bin = factor(case_when(
+      beating_justified_out_bin == "Yes" | beating_justified_neglect_bin == "Yes" |
+      beating_justified_argue_bin == "Yes" | beating_justified_refuse_sex_bin == "Yes" |
+      beating_justified_burn_food_bin == "Yes" ~ 1,
+      beating_justified_out_bin == "No" & beating_justified_neglect_bin == "No" &
+      beating_justified_argue_bin == "No" & beating_justified_refuse_sex_bin == "No" &
+      beating_justified_burn_food_bin == "No" ~ 0,
+      TRUE ~ NA_real_
+    ), levels = c(0, 1), labels = c("No", "Yes"))
+  )
+
+
 # create number of children cat
 southeast_asia_combined <- southeast_asia_combined %>%
   mutate(
@@ -169,27 +192,6 @@ southeast_asia_combined <- southeast_asia_combined %>%
       TRUE ~ NA_character_
     ),
     children_under5_4cat = factor(children_under5_4cat, levels = c("0", "1", "2", "3+"))
-  )
-
-# create binary acceptability questions
-southeast_asia_combined <- southeast_asia_combined %>%
-  mutate(
-    justifies_dv_condom_bin         = case_when(s826f  == 1 ~ 1, s826f  == 0 ~ 0, TRUE ~ NA_real_),
-    beating_justified_out_bin       = case_when(v744a  == 1 ~ 1, v744a  == 0 ~ 0, TRUE ~ NA_real_),
-    beating_justified_neglect_bin   = case_when(v744b  == 1 ~ 1, v744b  == 0 ~ 0, TRUE ~ NA_real_),
-    beating_justified_argue_bin     = case_when(v744c  == 1 ~ 1, v744c  == 0 ~ 0, TRUE ~ NA_real_),
-    beating_justified_refuse_sex_bin= case_when(v744d  == 1 ~ 1, v744d  == 0 ~ 0, TRUE ~ NA_real_),
-    beating_justified_burn_food_bin = case_when(v744e  == 1 ~ 1, v744e  == 0 ~ 0, TRUE ~ NA_real_),
-    can_refuse_sex_bin              = case_when(v850a  == 1 ~ 1, v850a  == 0 ~ 0, TRUE ~ NA_real_),
-    beating_justified_bin = case_when(
-      beating_justified_out_bin == 1 | beating_justified_neglect_bin == 1 |
-      beating_justified_argue_bin == 1 | beating_justified_refuse_sex_bin == 1 |
-      beating_justified_burn_food_bin == 1 ~ 1,
-      beating_justified_out_bin == 0 & beating_justified_neglect_bin == 0 &
-      beating_justified_argue_bin == 0 & beating_justified_refuse_sex_bin == 0 &
-      beating_justified_burn_food_bin == 0 ~ 0,
-      TRUE ~ NA_real_
-    )
   )
 
 # convert confounders to factors

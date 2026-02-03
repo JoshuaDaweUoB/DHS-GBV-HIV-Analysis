@@ -3,6 +3,9 @@
 # load packages
 pacman::p_load(dplyr, tidyr, haven, purrr, tableone, broom, writexl, stringr, openxlsx)
 
+# set working directory
+setwd("C:/Users/vl22683/OneDrive - University of Bristol/Documents/Publications/DHS and violence paper/data/")
+
 # load clean data
 southeast_asia_combined <- readRDS("../data/southeast_asia_combined_dataset.rds")
 
@@ -14,10 +17,9 @@ married_data <- southeast_asia_combined %>% filter(v502 == 1)
 never_married_data <- southeast_asia_combined %>% filter(v502 == 0)
 separated_data <- southeast_asia_combined %>% filter(v502 == 2)
 
-for (var in exposures) {
-  cat("\n", var, ":\n")
-  print(table(married_data[married_data$country == "philippines", var], useNA = "ifany"))
-}
+# exposures
+exposures <- c("any_violence", "emotional_violence_bin", "sexual_violence_bin", "less_severe_violence_bin", "severe_violence_bin")
+exposure_labels <- c("Any violence", "Emotional violence", "Sexual violence", "Less severe violence", "Severe violence")
 
 # confounders
 confounder_vars_stratified <- c("household_head", "religion", "employed_bin", "residence_3cat", "children_under5_4cat")  
@@ -32,10 +34,7 @@ build_formula <- function(exposure, confounders) {
 
 # Philippines
 
-exposures <- c("any_violence", "emotional_violence_bin", "sexual_violence_bin", "less_severe_violence_bin", "severe_violence_bin", )
-exposure_labels <- c("Any violence", "Emotional violence", "Sexual violence", "Less severe violence", "Severe violence")
-
-results <- data.frame(
+violence_exp_philippines <- data.frame(
   Exposure = exposure_labels,
   Married_OR_CI = NA_character_,
   NeverMarried_OR_CI = NA_character_,
@@ -51,7 +50,7 @@ for (i in seq_along(exposures)) {
   row <- res[res$term == term, ]
   if (nrow(row) > 0) {
     or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
-    results$Married_OR_CI[i] <- or_str
+    violence_exp_philippines$Married_OR_CI[i] <- or_str
   }
 }
 
@@ -63,7 +62,7 @@ for (i in seq_along(exposures)) {
   row <- res[res$term == term, ]
   if (nrow(row) > 0) {
     or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
-    results$NeverMarried_OR_CI[i] <- or_str
+    violence_exp_philippines$NeverMarried_OR_CI[i] <- or_str
   }
 }
 
@@ -75,16 +74,16 @@ for (i in seq_along(exposures)) {
   row <- res[res$term == term, ]
   if (nrow(row) > 0) {
     or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
-    results$Separated_OR_CI[i] <- or_str
+    violence_exp_philippines$Separated_OR_CI[i] <- or_str
   }
 }
 
 # save results
-writeData(violence_results, "philippines", results)
+writeData(violence_results, sheet = "Philippines_Experience", violence_exp_philippines)
 
 # cambodia
 
-results <- data.frame(
+violence_exp_cambodia <- data.frame(
   Exposure = exposure_labels,
   Married_OR_CI = NA_character_,
   NeverMarried_OR_CI = NA_character_,
@@ -100,7 +99,7 @@ for (i in seq_along(exposures)) {
   row <- res[res$term == term, ]
   if (nrow(row) > 0) {
     or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
-    results$Married_OR_CI[i] <- or_str
+    violence_exp_cambodia$Married_OR_CI[i] <- or_str
   }
 }
 
@@ -115,7 +114,7 @@ for (i in seq_along(exposures)) {
     row <- res[res$term == term, ]
     if (nrow(row) > 0) {
       or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
-      results$NeverMarried_OR_CI[i] <- or_str
+      violence_exp_cambodia$NeverMarried_OR_CI[i] <- or_str
     }
   }, silent = TRUE)
 }
@@ -128,13 +127,12 @@ for (i in seq_along(exposures)) {
   row <- res[res$term == term, ]
   if (nrow(row) > 0) {
     or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
-    results$Separated_OR_CI[i] <- or_str
+    violence_exp_cambodia$Separated_OR_CI[i] <- or_str
   }
 }
 
 # save results
-writeData(violence_results, "cambodia", results)
-saveWorkbook(violence_results, "violence_ORs.xlsx", overwrite = TRUE)
+writeData(violence_results, sheet = "Cambodia_Experience", violence_exp_cambodia)
 
 ## acceptability of violence
 
@@ -160,7 +158,9 @@ acceptability_labels <- c(
   "Any beating justified"
 )
 
-acceptability_results <- data.frame(
+# philippines
+
+violence_acc_philippines <- data.frame(
   Exposure = acceptability_labels,
   Married_OR_CI = NA_character_,
   NeverMarried_OR_CI = NA_character_,
@@ -175,11 +175,11 @@ for (i in seq_along(acceptability_exposures)) {
                  data = married_data[married_data$country == "philippines", ], 
                  family = binomial())
     res <- tidy(model, exponentiate = TRUE, conf.int = TRUE)
-    term <- acceptability_exposures[i]
+    term <- paste0(acceptability_exposures[i], "Yes")
     row <- res[res$term == term, ]
     if (nrow(row) > 0) {
       or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
-      results$NeverMarried_OR_CI[i] <- or_str
+      violence_acc_philippines$Married_OR_CI[i] <- or_str
     }
   }, silent = TRUE)
 }
@@ -191,11 +191,11 @@ for (i in seq_along(acceptability_exposures)) {
                  data = never_married_data[never_married_data$country == "philippines", ], 
                  family = binomial())
     res <- tidy(model, exponentiate = TRUE, conf.int = TRUE)
-    term <- acceptability_exposures[i]
+    term <- paste0(acceptability_exposures[i], "Yes")
     row <- res[res$term == term, ]
     if (nrow(row) > 0) {
       or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
-      results$NeverMarried_OR_CI[i] <- or_str
+      acceptability_resviolence_acc_philippinesults$NeverMarried_OR_CI[i] <- or_str
     }
   }, silent = TRUE)
 }
@@ -204,24 +204,91 @@ for (i in seq_along(acceptability_exposures)) {
 for (i in seq_along(acceptability_exposures)) {
   try({
     model <- glm(build_formula(acceptability_exposures[i], confounder_vars_stratified), 
-                 data = separated_married_data[separated_married_data$country == "philippines", ], 
+                 data = separated_data[separated_data$country == "philippines", ], 
                  family = binomial())
     res <- tidy(model, exponentiate = TRUE, conf.int = TRUE)
-    term <- acceptability_exposures[i]
+    term <- paste0(acceptability_exposures[i], "Yes")
     row <- res[res$term == term, ]
     if (nrow(row) > 0) {
       or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
-      results$NeverMarried_OR_CI[i] <- or_str
+      violence_acc_philippines$Separated_OR_CI[i] <- or_str
     }
   }, silent = TRUE)
 }
 
 # Save results
-writeData(violence_results, "philippines_acceptability", acceptability_results)
+writeData(violence_results, sheet = "Philippines_Acceptability", violence_acc_philippines)
+
+# cambodia
+
+violence_acc_cambodia <- data.frame(
+  Exposure = acceptability_labels,
+  Married_OR_CI = NA_character_,
+  NeverMarried_OR_CI = NA_character_,
+  Separated_OR_CI = NA_character_,
+  stringsAsFactors = FALSE
+)
+
+# Married
+for (i in seq_along(acceptability_exposures)) {
+  try({
+    model <- glm(build_formula(acceptability_exposures[i], confounder_vars_stratified), 
+                 data = married_data[married_data$country == "cambodia", ], 
+                 family = binomial())
+    res <- tidy(model, exponentiate = TRUE, conf.int = TRUE)
+    term <- paste0(acceptability_exposures[i], "Yes")
+    row <- res[res$term == term, ]
+    if (nrow(row) > 0) {
+      or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
+      violence_acc_cambodia$Married_OR_CI[i] <- or_str
+    }
+  }, silent = TRUE)
+}
+
+# Never married
+for (i in seq_along(acceptability_exposures)) {
+  try({
+    model <- glm(build_formula(acceptability_exposures[i], confounder_vars_stratified), 
+                 data = never_married_data[never_married_data$country == "cambodia", ], 
+                 family = binomial())
+    res <- tidy(model, exponentiate = TRUE, conf.int = TRUE)
+    term <- paste0(acceptability_exposures[i], "Yes")
+    row <- res[res$term == term, ]
+    if (nrow(row) > 0) {
+      or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
+      violence_acc_cambodia$NeverMarried_OR_CI[i] <- or_str
+    }
+  }, silent = TRUE)
+}
+
+# Separated
+for (i in seq_along(acceptability_exposures)) {
+  try({
+    model <- glm(build_formula(acceptability_exposures[i], confounder_vars_stratified), 
+                 data = separated_data[separated_data$country == "cambodia", ], 
+                 family = binomial())
+    res <- tidy(model, exponentiate = TRUE, conf.int = TRUE)
+    term <- paste0(acceptability_exposures[i], "Yes")
+    row <- res[res$term == term, ]
+    if (nrow(row) > 0) {
+      or_str <- sprintf("%.2f (%.2f–%.2f)", row$estimate, row$conf.low, row$conf.high)
+      violence_acc_cambodia$Separated_OR_CI[i] <- or_str
+    }
+  }, silent = TRUE)
+}
+
+# Save results
+writeData(violence_results, sheet = "Cambodia_Acceptability", violence_acc_cambodia)
 saveWorkbook(violence_results, "violence_ORs.xlsx", overwrite = TRUE)
 
 
 
+
+# any beating justified
+model <- glm(build_formula("beating_justified_bin", confounder_vars_stratified), data = separated_married_data[separated_married_data$country == "philippines", ], family = binomial())
+summary(model)
+print(res$term)
+exp(cbind(OR = coef(model), confint(model)))
 
 
 
