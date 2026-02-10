@@ -59,6 +59,9 @@ southeast_asia_combined <- bind_rows(
   philippines_2022_individual_clean
 )
 
+table(southeast_asia_combined$v781, useNA = "always")
+
+
 # standardise religion variable
 southeast_asia_combined <- southeast_asia_combined %>%
   mutate(religion = case_when(
@@ -85,6 +88,16 @@ southeast_asia_combined <- southeast_asia_combined %>%
     TRUE ~ "missing"
   ))
 
+  # standardise religion variable
+southeast_asia_combined <- southeast_asia_combined %>%
+  mutate(religion_4cat = case_when(
+    religion == "buddhist" ~ "buddhist",
+    religion == "muslim" ~ "muslim",
+    religion %in% c("roman catholic", "protestant", "iglesia ni cristo", "aglipay", "other christian", "christian") ~ "christian",
+    religion %in% c("other", "no religion", "missing") ~ "other",
+    TRUE ~ NA_character_
+  ))
+  
 # binary hiv testing outcome
 southeast_asia_combined <- southeast_asia_combined %>%
   filter(!is.na(v781)) %>%
@@ -145,18 +158,52 @@ southeast_asia_combined <- southeast_asia_combined %>%
 # make violence experiences binary
 southeast_asia_combined <- southeast_asia_combined %>%
   mutate(
-    emotional_violence_bin    = factor(case_when(d104 == 1 ~ 1, d104 == 0 ~ 0, TRUE ~ NA_real_), levels = c(0, 1), labels = c("No", "Yes")),
-    less_severe_violence_bin  = factor(case_when(d106 == 1 ~ 1, d106 == 0 ~ 0, TRUE ~ NA_real_), levels = c(0, 1), labels = c("No", "Yes")),
-    severe_violence_bin       = factor(case_when(d107 == 1 ~ 1, d107 == 0 ~ 0, TRUE ~ NA_real_), levels = c(0, 1), labels = c("No", "Yes")),
-    sexual_violence_bin       = factor(case_when(d108 == 1 ~ 1, d108 == 0 ~ 0, TRUE ~ NA_real_), levels = c(0, 1), labels = c("No", "Yes")),
+    emotional_violence_bin = factor(case_when(
+      d104 == 1 ~ 1,
+      d104 == 0 ~ 0,
+      TRUE ~ NA_real_
+    ), levels = c(0, 1), labels = c("No", "Yes")),
+    
+    less_severe_violence_bin = factor(case_when(
+      d106 == 1 & d107 == 0 ~ 1,                # less severe only
+      d106 == 0 & d107 == 0 ~ 0,                # no violence
+      d107 == 1 ~ NA_real_,                     # severe violence present, set to NA
+      TRUE ~ NA_real_
+    ), levels = c(0, 1), labels = c("No", "Yes")),
+    
+    severe_violence_bin = factor(case_when(
+      d107 == 1 & d106 == 0 ~ 1,                # severe only
+      d107 == 1 & d106 == 1 ~ 1,                # both severe and less severe
+      d107 == 0 & d106 == 0 ~ 0,                # no violence
+      d106 == 1 & d107 == 0 ~ NA_real_,         # less severe only, set to NA for severe
+      TRUE ~ NA_real_
+    ), levels = c(0, 1), labels = c("No", "Yes")),
+    
+    sexual_violence_bin = factor(case_when(
+      d108 == 1 ~ 1,
+      d108 == 0 ~ 0,
+      TRUE ~ NA_real_
+    ), levels = c(0, 1), labels = c("No", "Yes")),
+    
     any_violence = factor(case_when(
       emotional_violence_bin == "Yes" | less_severe_violence_bin == "Yes" |
       severe_violence_bin == "Yes" | sexual_violence_bin == "Yes" ~ 1,
       emotional_violence_bin == "No" & less_severe_violence_bin == "No" &
       severe_violence_bin == "No" & sexual_violence_bin == "No" ~ 0,
       TRUE ~ NA_real_
-    ), levels = c(0, 1), labels = c("No", "Yes"))
+    ), levels = c(0, 1), labels = c("No", "Yes")),
+    
+    any_physical_violence_bin = factor(case_when(
+  less_severe_violence_bin == "Yes" | severe_violence_bin == "Yes" ~ 1,
+  less_severe_violence_bin == "No" & severe_violence_bin == "No" ~ 0,
+  TRUE ~ NA_real_
+), levels = c(0, 1), labels = c("No", "Yes"))
   )
+
+# tabulate to see how the variables are coded
+table(southeast_asia_combined$less_severe_violence_bin, useNA = "ifany")
+table(southeast_asia_combined$severe_violence_bin, useNA = "ifany")
+table(southeast_asia_combined$less_severe_violence_bin, southeast_asia_combined$severe_violence_bin, useNA = "ifany")
 
 # make acceptability questions binary
 southeast_asia_combined <- southeast_asia_combined %>%
