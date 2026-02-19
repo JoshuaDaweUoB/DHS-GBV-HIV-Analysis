@@ -155,6 +155,17 @@ southeast_asia_combined <- southeast_asia_combined %>%
       TRUE ~ NA_character_
     ))
 
+# create marital status var
+southeast_asia_combined <- southeast_asia_combined %>%
+  mutate(
+    marital_status_3cat = factor(case_when(
+      v502 == 0 ~ 0,        # never married
+      v502 == 1 ~ 1,        # married
+      v502 == 2 ~ 2,        # separated
+      TRUE ~ NA_real_
+    ), levels = c(0, 1, 2), labels = c("Never married", "Married", "Separated"))
+  )
+
 # make violence experiences binary
 southeast_asia_combined <- southeast_asia_combined %>%
   mutate(
@@ -187,17 +198,17 @@ southeast_asia_combined <- southeast_asia_combined %>%
     
     any_violence = factor(case_when(
       emotional_violence_bin == "Yes" | less_severe_violence_bin == "Yes" |
-      severe_violence_bin == "Yes" | sexual_violence_bin == "Yes" ~ 1,
-      emotional_violence_bin == "No" & less_severe_violence_bin == "No" &
-      severe_violence_bin == "No" & sexual_violence_bin == "No" ~ 0,
+        severe_violence_bin == "Yes" | sexual_violence_bin == "Yes" ~ 1,
+      emotional_violence_bin == "No" | less_severe_violence_bin == "No" |
+        severe_violence_bin == "No" | sexual_violence_bin == "No" ~ 0,
       TRUE ~ NA_real_
     ), levels = c(0, 1), labels = c("No", "Yes")),
     
     any_physical_violence_bin = factor(case_when(
-  less_severe_violence_bin == "Yes" | severe_violence_bin == "Yes" ~ 1,
-  less_severe_violence_bin == "No" & severe_violence_bin == "No" ~ 0,
-  TRUE ~ NA_real_
-), levels = c(0, 1), labels = c("No", "Yes"))
+      less_severe_violence_bin == "Yes" | severe_violence_bin == "Yes" ~ 1,
+      less_severe_violence_bin == "No" | severe_violence_bin == "No" ~ 0,
+      TRUE ~ NA_real_
+    ), levels = c(0, 1), labels = c("No", "Yes"))
   )
 
 # tabulate to see how the variables are coded
@@ -218,15 +229,14 @@ southeast_asia_combined <- southeast_asia_combined %>%
 
     beating_justified_bin = factor(case_when(
       beating_justified_out_bin == "Yes" | beating_justified_neglect_bin == "Yes" |
-      beating_justified_argue_bin == "Yes" | beating_justified_refuse_sex_bin == "Yes" |
-      beating_justified_burn_food_bin == "Yes" ~ 1,
-      beating_justified_out_bin == "No" & beating_justified_neglect_bin == "No" &
-      beating_justified_argue_bin == "No" & beating_justified_refuse_sex_bin == "No" &
-      beating_justified_burn_food_bin == "No" ~ 0,
+        beating_justified_argue_bin == "Yes" | beating_justified_refuse_sex_bin == "Yes" |
+        beating_justified_burn_food_bin == "Yes" ~ 1,
+      beating_justified_out_bin == "No" | beating_justified_neglect_bin == "No" |
+        beating_justified_argue_bin == "No" | beating_justified_refuse_sex_bin == "No" |
+        beating_justified_burn_food_bin == "No" ~ 0,
       TRUE ~ NA_real_
     ), levels = c(0, 1), labels = c("No", "Yes"))
   )
-
 
 # create number of children cat
 southeast_asia_combined <- southeast_asia_combined %>%

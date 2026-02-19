@@ -9,12 +9,13 @@ setwd("C:/Users/vl22683/OneDrive - University of Bristol/Documents/Publications/
 # load clean data
 southeast_asia_combined <- readRDS("../data/southeast_asia_combined_dataset.rds")
 
-# values for flowchart
-table(southeast_asia_combined$v781, useNA = "always")
-table(southeast_asia_combined$any_violence, useNA = "always")
-table(southeast_asia_combined$beating_justified_bin, useNA = "always")
-table(southeast_asia_combined$any_violence, southeast_asia_combined$beating_justified_bin, useNA = "always")
-sum(!is.na(southeast_asia_combined$any_violence) & is.na(southeast_asia_combined$beating_justified_bin))
+# total sample with hiv testing data
+nrow(southeast_asia_combined)
+
+# total sample with violence data
+southeast_asia_combined <- southeast_asia_combined %>%
+  filter(!is.na(beating_justified_bin) | !is.na(any_violence))
+nrow(southeast_asia_combined)
 
 justified_only <- sum(!is.na(southeast_asia_combined$beating_justified_bin) & is.na(southeast_asia_combined$any_violence))
 any_violence_only <- sum(!is.na(southeast_asia_combined$any_violence) & is.na(southeast_asia_combined$beating_justified_bin))
@@ -24,13 +25,108 @@ any_violence_only
 both
 sum(is.na(southeast_asia_combined$any_violence) & is.na(southeast_asia_combined$beating_justified_bin))
 
+# counts of violence variables
+vars1 <- c(
+  "justifies_dv_condom_bin",
+  "can_refuse_sex_bin",
+  "beating_justified_out_bin",
+  "beating_justified_neglect_bin",
+  "beating_justified_argue_bin",
+  "beating_justified_refuse_sex_bin",
+  "beating_justified_burn_food_bin",
+  "beating_justified_bin"
+)
+vars2 <- c(
+  "less_severe_violence_bin",
+  "severe_violence_bin",
+  "sexual_violence_bin",
+  "emotional_violence_bin",
+  "any_violence",
+  "any_physical_violence_bin"
+)
+
+summarise_counts <- function(df, vars) {
+  res <- lapply(vars, function(v) {
+    x <- df[[v]]
+    tab <- table(x, useNA = "ifany")
+    # Only use non-NA for percent denominator
+    non_na_total <- sum(!is.na(x))
+    value_names <- as.character(names(tab))
+    value_names[is.na(value_names)] <- "NA"
+    pct_out <- rep(NA, length(tab))
+    if (non_na_total > 0) {
+      pct_out[value_names != "NA"] <- round(100 * as.numeric(tab[value_names != "NA"]) / non_na_total, 1)
+    }
+    data.frame(
+      variable = v,
+      value = value_names,
+      count = as.integer(tab),
+      percent = pct_out,
+      stringsAsFactors = FALSE
+    )
+  })
+  do.call(rbind, res)
+}
+
+# acceptability
+overall1 <- summarise_counts(southeast_asia_combined, vars1)
+philippines1 <- summarise_counts(subset(southeast_asia_combined, country == "philippines"), vars1)
+cambodia1 <- summarise_counts(subset(southeast_asia_combined, country == "cambodia"), vars1)
+
+# presence of funky acceptability questions
+camb <- subset(southeast_asia_combined, country == "cambodia")
+phil <- subset(southeast_asia_combined, country == "philippines")
+
+# Years where justifies_dv_condom_bin is present
+unique(camb$v007[!is.na(camb$justifies_dv_condom_bin)])
+
+# Years where can_refuse_sex_bin is present
+unique(camb$v007[!is.na(camb$can_refuse_sex_bin)])
+unique(phil$v007[!is.na(phil$can_refuse_sex_bin)])
+
+overall1
+philippines1 
+cambodia1
+
+# experiences
+overall2 <- summarise_counts(southeast_asia_combined, vars2)
+cambodia2 <- summarise_counts(subset(southeast_asia_combined, country == "cambodia"), vars2)
+philippines2 <- summarise_counts(subset(southeast_asia_combined, country == "philippines"), vars2)
+
+overall2
+philippines2
+cambodia2
+
+# counts of marital status
+tab <- table(southeast_asia_combined$country, southeast_asia_combined$marital_status_3cat)
+pct <- round(100 * prop.table(tab, 1), 1)
+tab <- cbind(tab, Sum = rowSums(tab))
+pct <- cbind(pct, Sum = 100)
+out <- matrix(
+  paste0(tab, " (", pct, "%)"),
+  nrow = nrow(tab),
+  dimnames = dimnames(tab)
+)
+# Add a total row with only counts
+total_row <- c(colSums(tab[, -ncol(tab), drop=FALSE]), sum(tab[, "Sum"]))
+out <- rbind(out, Total = c(total_row, ""))
+
+# Add a "Total %" row with column percentages for the full sample
+grand_total <- sum(tab[, -ncol(tab), drop=FALSE])
+total_pct_row <- c(round(100 * colSums(tab[, -ncol(tab), drop=FALSE]) / grand_total, 1), "")
+rownames(total_pct_row) <- NULL
+out <- rbind(out, "Total %" = total_pct_row)
+out
+
+# complete case
+
 # create workbook for results
 violence_results <- loadWorkbook("violence_ORs.xlsx")
 
 # stratify data by marriage type
-married_data <- southeast_asia_combined %>% filter(v502 == 1)
-never_married_data <- southeast_asia_combined %>% filter(v502 == 0)
-separated_data <- southeast_asia_combined %>% filter(v502 == 2)
+married_data <- southeast_asia_combined %>% filter(marital_status_3cat == 1)
+never_married_data <- southeast_asia_combined %>% filter(marital_status_3cat == 0)
+separated_data <- southeast_asia_combined %>% filter(marital_status_3cat == 2)
 
 # exposures
 exposures <- c("any_violence", "emotional_violence_bin", "sexual_violence_bin", "less_severe_violence_bin", "severe_violence_bin", "any_physical_violence_bin")
@@ -456,12 +552,12 @@ for (i in seq_along(exposures)) {
 # Acceptability exposures and labels
 acceptability_exposures <- c(
   "justifies_dv_condom_bin",
+  "can_refuse_sex_bin",
   "beating_justified_out_bin",
   "beating_justified_neglect_bin",
   "beating_justified_argue_bin",
   "beating_justified_refuse_sex_bin",
   "beating_justified_burn_food_bin",
-  "can_refuse_sex_bin",
   "beating_justified_bin"
 )
 acceptability_labels <- c(
