@@ -1,13 +1,10 @@
-## association between violence and hiv testing ##
-
 # load packages
 pacman::p_load(dplyr, tidyr, haven, purrr, tableone, broom, writexl, stringr, openxlsx)
 
 # set working directory
 setwd("C:/Users/vl22683/OneDrive - University of Bristol/Documents/Publications/DHS and violence paper/data/")
 
-# load clean data
-southeast_asia_combined <- readRDS("../data/southeast_asia_combined_dataset.rds")
+## frequency table
 
 # total sample with hiv testing data
 nrow(southeast_asia_combined)
@@ -25,108 +22,153 @@ any_violence_only
 both
 sum(is.na(southeast_asia_combined$any_violence) & is.na(southeast_asia_combined$beating_justified_bin))
 
-# counts of violence variables
-vars1 <- c(
-  "justifies_dv_condom_bin",
-  "can_refuse_sex_bin",
-  "beating_justified_out_bin",
-  "beating_justified_neglect_bin",
-  "beating_justified_argue_bin",
-  "beating_justified_refuse_sex_bin",
-  "beating_justified_burn_food_bin",
-  "beating_justified_bin"
-)
-vars2 <- c(
-  "less_severe_violence_bin",
-  "severe_violence_bin",
-  "sexual_violence_bin",
-  "emotional_violence_bin",
-  "any_violence",
-  "any_physical_violence_bin"
-)
+# load clean data
+southeast_asia_combined <- readRDS("../data/southeast_asia_combined_dataset.rds")
+table(southeast_asia_combined$beating_justified_bin)
 
-summarise_counts <- function(df, vars) {
-  res <- lapply(vars, function(v) {
-    x <- df[[v]]
-    tab <- table(x, useNA = "ifany")
-    # Only use non-NA for percent denominator
-    non_na_total <- sum(!is.na(x))
-    value_names <- as.character(names(tab))
-    value_names[is.na(value_names)] <- "NA"
-    pct_out <- rep(NA, length(tab))
-    if (non_na_total > 0) {
-      pct_out[value_names != "NA"] <- round(100 * as.numeric(tab[value_names != "NA"]) / non_na_total, 1)
+# violence variables
+violence_vars <- c("s826f", "v744a", "v744b", "v744c", "v744d", "v744e", "v850a", "d104", "d106", "d107", "d108", "d128", "any_violence", "beating_justified_bin")
+
+# binary hiv testing outcome
+analysis_data <- southeast_asia_combined %>%
+  filter(!is.na(v781)) %>%
+  mutate(v781_binary = case_when(
+    v781 == 1 ~ 1,  
+    v781 == 0 ~ 0,  
+    TRUE ~ NA_real_ 
+  )) %>%
+  filter(!is.na(v781_binary))
+
+# convert vars from numeric to factors
+analysis_data <- analysis_data %>%
+  mutate(across(any_of(violence_vars), ~ as.factor(.x)))
+
+# any wife-beating justified (v744a–v744e)
+just_vars <- c("v744a","v744b","v744c","v744d","v744e")
+
+analysis_data <- analysis_data %>%
+  rowwise() %>%
+  mutate(
+    beating_justified_bin = {
+      sx <- trimws(as.character(c_across(all_of(just_vars))))
+      any_yes <- any(sx %in% c("1","Yes","TRUE","True","T"), na.rm = TRUE)
+      any_obs <- any(sx %in% c("0","1","No","Yes","FALSE","False","TRUE","True","T","F"), na.rm = TRUE)
+      if (any_yes) "Yes" else if (any_obs) "No" else NA_character_
     }
-    data.frame(
-      variable = v,
-      value = value_names,
-      count = as.integer(tab),
-      percent = pct_out,
-      stringsAsFactors = FALSE
-    )
-  })
-  do.call(rbind, res)
+  ) %>%
+  ungroup() %>%
+  mutate(beating_justified_bin = factor(beating_justified_bin, levels = c("No","Yes")))
+
+# Ensure country is lower-case consistent
+analysis_data <- analysis_data %>% mutate(country = tolower(as.character(country)))
+
+# Define countries for output and display names
+target_countries <- c("philippines", "cambodia")
+
+# Helper: normalize a variable to character "0"/"1" for counting
+to_01_char <- function(x) {
+  if (is.logical(x)) {
+    y <- ifelse(x, "1", "0")
+  } else if (is.numeric(x)) {
+    y <- ifelse(x == 1, "1",
+                ifelse(x == 0, "0", NA_character_))
+  } else {
+    # factor/character – trim and map common encodings
+    sx <- trimws(as.character(x))
+    y <- ifelse(sx %in% c("1","Yes","TRUE","True","T"), "1",
+                ifelse(sx %in% c("0","No","FALSE","False","F"), "0", NA_character_))
+  }
+  y
 }
 
-# acceptability
-overall1 <- summarise_counts(southeast_asia_combined, vars1)
-philippines1 <- summarise_counts(subset(southeast_asia_combined, country == "philippines"), vars1)
-cambodia1 <- summarise_counts(subset(southeast_asia_combined, country == "cambodia"), vars1)
+# Helper to compute n and percent for 0/1 levels of a single variable within a dataset
+freq_01 <- function(df, var) {
+  vv <- to_01_char(df[[var]])
+  total_n <- sum(!is.na(vv))
+  n0 <- sum(vv == "0", na.rm = TRUE)
+  n1 <- sum(vv == "1", na.rm = TRUE)
+  p0 <- if (total_n > 0) round(100 * n0 / total_n, 1) else 0
+  p1 <- if (total_n > 0) round(100 * n1 / total_n, 1) else 0
+  tibble(
+    level = c("No", "Yes"),
+    n = c(n0, n1),
+    pct = c(p0, p1),
+    total_n = total_n
+  )
+}
 
-# presence of funky acceptability questions
-camb <- subset(southeast_asia_combined, country == "cambodia")
-phil <- subset(southeast_asia_combined, country == "philippines")
-
-# Years where justifies_dv_condom_bin is present
-unique(camb$v007[!is.na(camb$justifies_dv_condom_bin)])
-
-# Years where can_refuse_sex_bin is present
-unique(camb$v007[!is.na(camb$can_refuse_sex_bin)])
-unique(phil$v007[!is.na(phil$can_refuse_sex_bin)])
-
-overall1
-philippines1 
-cambodia1
-
-# experiences
-overall2 <- summarise_counts(southeast_asia_combined, vars2)
-cambodia2 <- summarise_counts(subset(southeast_asia_combined, country == "cambodia"), vars2)
-philippines2 <- summarise_counts(subset(southeast_asia_combined, country == "philippines"), vars2)
-
-overall2
-philippines2
-cambodia2
-
-# counts of marital status
-tab <- table(southeast_asia_combined$country, southeast_asia_combined$marital_status_3cat)
-pct <- round(100 * prop.table(tab, 1), 1)
-tab <- cbind(tab, Sum = rowSums(tab))
-pct <- cbind(pct, Sum = 100)
-out <- matrix(
-  paste0(tab, " (", pct, "%)"),
-  nrow = nrow(tab),
-  dimnames = dimnames(tab)
+variable_labels <- tibble::tribble(
+  ~violence_variable, ~variable_label,
+  "s826f", "Justifies DV: wife ask use condom",
+  "v744a", "Wife beating justified: goes out without telling husband",
+  "v744b", "Wife beating justified: neglects children",
+  "v744c", "Wife beating justified: argues with husband",
+  "v744d", "Wife beating justified: refuses sex with husband",
+  "v744e", "Wife beating justified: burns the food",
+  "v850a", "Can respondent refuse sex",
+  "d104",  "Experienced any emotional violence",
+  "d106",  "Experienced any less severe violence",
+  "d107",  "Experienced any severe violence",
+  "d108",  "Experienced any sexual violence",
+  "d128",  "Ever told anyone else about violence",
+  "any_violence", "Any violent experiences",
+  "beating_justified_bin", "Beating justified any reason"
 )
-# Add a total row with only counts
-total_row <- c(colSums(tab[, -ncol(tab), drop=FALSE]), sum(tab[, "Sum"]))
-out <- rbind(out, Total = c(total_row, ""))
 
-# Add a "Total %" row with column percentages for the full sample
-grand_total <- sum(tab[, -ncol(tab), drop=FALSE])
-total_pct_row <- c(round(100 * colSums(tab[, -ncol(tab), drop=FALSE]) / grand_total, 1), "")
-rownames(total_pct_row) <- NULL
-out <- rbind(out, "Total %" = total_pct_row)
-out
+# Build the table
+violence_freq_rows <- purrr::map_dfr(violence_vars, function(var) {
+  # Label for the violence variable
+  vlabel <- variable_labels %>%
+    filter(violence_variable == var) %>%
+    pull(variable_label) %>%
+    { if(length(.)==0) var else . }
 
-# complete case
+  # Per-country data frames (fill zeros if country absent)
+  per_country <- purrr::map(target_countries, function(cty) {
+    df_cty <- analysis_data %>% filter(country == cty)
+    if (nrow(df_cty) == 0) {
+      tibble(level = c("No", "Yes"), n = c(0, 0), pct = c(0, 0), total_n = 0)
+    } else {
+      freq_01(df_cty, var)
+    }
+  })
+
+  # Overall
+  overall <- freq_01(analysis_data, var)
+
+  tibble(
+    `Violence exposure` = c(vlabel, vlabel),
+    Level = c("No", "Yes"),
+    `Philippines, n (%)` = sprintf("%d (%.1f%%)", per_country[[1]]$n, per_country[[1]]$pct),
+    `Cambodia, n (%)`    = sprintf("%d (%.1f%%)", per_country[[2]]$n, per_country[[2]]$pct),
+    `Overall, n (%)`     = sprintf("%d (%.1f%%)", overall$n, overall$pct)
+  )
+})
+
+# Order rows by the template order from variable_labels
+violence_freq_rows <- violence_freq_rows %>%
+  mutate(order = match(`Violence exposure`, variable_labels$variable_label)) %>%
+  arrange(order, desc(Level)) %>%
+  select(-order)
+
+# Save to Excel
+writexl::write_xlsx(violence_freq_rows, "violence_exposure_frequencies.xlsx")
+
+## regressions
+
+# load clean data
+southeast_asia_combined <- readRDS("../data/southeast_asia_combined_dataset.rds")
 
 # create workbook for results
 violence_results <- loadWorkbook("violence_ORs.xlsx")
 
 # stratify data by marriage type
-married_data <- southeast_asia_combined %>% filter(marital_status_3cat == 1)
-never_married_data <- southeast_asia_combined %>% filter(marital_status_3cat == 0)
-separated_data <- southeast_asia_combined %>% filter(marital_status_3cat == 2)
+married_data <- southeast_asia_combined %>% filter(marital_status_3cat == "Married")
+nrow(married_data)
+never_married_data <- southeast_asia_combined %>% filter(marital_status_3cat == "Never married")
+nrow(never_married_data)
+separated_data <- southeast_asia_combined %>% filter(marital_status_3cat == "Separated")
+nrow(separated_data)
 
 # exposures
 exposures <- c("any_violence", "emotional_violence_bin", "sexual_violence_bin", "less_severe_violence_bin", "severe_violence_bin", "any_physical_violence_bin")
@@ -560,16 +602,19 @@ acceptability_exposures <- c(
   "beating_justified_burn_food_bin",
   "beating_justified_bin"
 )
+
 acceptability_labels <- c(
-  "Justifies DV (condom)",
-  "Beating justified: out",
-  "Beating justified: neglect",
-  "Beating justified: argue",
-  "Beating justified: refuse sex",
-  "Beating justified: burn food",
-  "Can refuse sex",
-  "Any beating justified"
+  justifies_dv_condom_bin = "Justifies DV (condom)",
+  can_refuse_sex_bin = "Can refuse sex",
+  beating_justified_out_bin = "Beating justified: out",
+  beating_justified_neglect_bin = "Beating justified: neglect",
+  beating_justified_argue_bin = "Beating justified: argue",
+  beating_justified_refuse_sex_bin = "Beating justified: refuse sex",
+  beating_justified_burn_food_bin = "Beating justified: burn food",
+  beating_justified_bin = "Any beating justified"
 )
+
+prop.table(table(married_data$v781_binary, married_data$can_refuse_sex_bin), margin = 2)
 
 # philippines
 
@@ -1258,3 +1303,5 @@ writeData(wb, "Philippines_Acceptability", phil_acc_table)
 writeData(wb, "Cambodia_Acceptability", cam_acc_table)
 
 saveWorkbook(wb, "violence_tables_formatted.xlsx", overwrite = TRUE)
+
+

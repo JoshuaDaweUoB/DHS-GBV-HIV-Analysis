@@ -61,7 +61,6 @@ southeast_asia_combined <- bind_rows(
 
 table(southeast_asia_combined$v781, useNA = "always")
 
-
 # standardise religion variable
 southeast_asia_combined <- southeast_asia_combined %>%
   mutate(religion = case_when(
@@ -109,7 +108,7 @@ southeast_asia_combined <- southeast_asia_combined %>%
   filter(!is.na(v781_binary))
 
 # lowercase country
-analysis_data <- southeast_asia_combined %>%
+southeast_asia_combined <- southeast_asia_combined %>%
   mutate(country = tolower(as.character(country))) %>%
   filter(!is.na(v781)) %>%
   mutate(
